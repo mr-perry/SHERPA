@@ -1,4 +1,6 @@
 import glob, sys, os, struct, bitstring, argparse
+import matplotlib
+matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
@@ -168,7 +170,7 @@ def calcSNR(data):
   SNR = 10*np.log10(np.power(signal/noise,2))
   return SNR
 
-def rangeCompression(sci, calChirp, window, chirp='ref', fil_type='Match', diag=False):
+def rangeCompression(sci, calChirp, chirp='ref', fil_type='Match', diag=False):
   """
     This function performs the chirp compression on a single SHARAD record
     Inputs:
@@ -193,9 +195,9 @@ def rangeCompression(sci, calChirp, window, chirp='ref', fil_type='Match', diag=
   #
   # Check the length of the vectors and pad where necessary
   #
-  if chirp == 'ideal' or chirp == 'UPB':
+  if chirp == 'ideal' or chirp == 'upb':
     tots_len = 3600
-  elif chirp == 'ref' or chirp == 'vib':
+  elif chirp == 'ref' or chirp == 'vibro':
     tots_len = 4096
   if len(sci) != tots_len:
     echoes = np.zeros(tots_len, complex)
@@ -216,14 +218,40 @@ def rangeCompression(sci, calChirp, window, chirp='ref', fil_type='Match', diag=
   #
   # Now perform a Fourier transform to calculate the spectra
   #
-  ecSpec = np.fft.fft(echoes) / len(echoes)
+  ecSpec = np.fft.fft(echoes) 
+  #
+  # Remove DC Components
+  #
+  ecSpec[2048-10 : 2048 + 11] = 0
+  ecSpec[4096-10:4096] = 0
+  ecSpec[0:10] = 0
   ecFreq = np.fft.fftfreq(length, dt)
   #
   # Now, decompress the science data and return to time domain
   #
   if fil_type == 'Match':
 #    decomp = np.fft.ifft(window*(dechirp*(ecSpec))) * len(sci)
-    decomp = np.fft.ifft((dechirp*(ecSpec))) * len(ecSpec)
+    try:
+      temp = dechirp*ecSpec
+      decomp = np.fft.ifft(temp)
+      ind = np.where(np.power(decomp,2) == np.max(np.power(decomp,2)))[0][0]
+      '''
+      plt.subplot(4,1,1)
+      plt.plot(np.abs(temp))
+      plt.subplot(4,1,2)
+      plt.plot(np.unwrap(np.angle(temp)))
+      plt.subplot(4,1,3)
+      plt.plot(np.sqrt(np.power(decomp,2)))
+      plt.xlim([ind-30, ind+30])
+      plt.subplot(4,1,4)
+      plt.plot(np.real(decomp))
+      plt.xlim([ind-30, ind+30])
+      plt.show()
+      '''
+    except:
+      print(len(dechirp))
+      print(len(ecSpec))
+      exit()
   elif fil_type == "Inverse":
     print('Filter type {} is currently unavailable.'.format(fil_type))
     print('Exiting...')
@@ -248,6 +276,8 @@ def parseAncilliary(data):
     print('Incorrect data supplied. Please ensure data is a 186 byte string')
     return
   else:
+    print(1)
+    exit()
     #
     # Set up dictionary for items
     #
@@ -505,14 +535,15 @@ def parseAuxFile(fname, df=False):
 # Chirp Functions
 #
 ##########################
-def detChirpFiles(TxTemp, RxTemp, chirp='ref'):
+def detChirpFiles(TxTemp, RxTemp, chirp='ref', beta=0):
   """
   This function determines the appropriate calibrated chirp file to use
   for range compression and returns the decoded calibrated chirp.
   This is solely based off the temperatures of the TxTemp and RxTemp.
   """
-  if chirp == 'ref' or chirp == 'vib':
-    calibRoot = '../calib/'
+  if chirp == 'ref' or chirp == 'vibro':
+#    calibRoot = '../calib/'
+    calibRoot = '/Users/mperry/data/calib/'
     calibName = 'reference_chirp'
     ext = '.dat'
     TxCalNames = ['m20tx', 'm15tx', 'm10tx', 'm05tx',
@@ -545,10 +576,13 @@ def detChirpFiles(TxTemp, RxTemp, chirp='ref'):
                    RxCalNames[RxDiff.index(min(RxDiff))] + ext
     if os.path.isfile(calChirpFile):
       calChirp = np.fromfile(calChirpFile, dtype='<f')
+      real = calChirp[:2048]
+      imag = calChirp[2048:]
       if chirp == 'ref':
-        real = calChirp[:2048]
-        imag = calChirp[2048:]
-      elif chirp == 'vib':
+        calChirp = real + 1j*imag
+        return calChirp
+      elif chirp == 'vibro':
+        '''
         #
         # Add a zero to the end to mimic missing Nyquist
         #
@@ -567,8 +601,12 @@ def detChirpFiles(TxTemp, RxTemp, chirp='ref'):
         # Drop the last sample and reverse and change sign
         #
         imag[2049:] = -1 * np.flipud(calChirp[2049:])
-      calChirp = real + 1j*imag
-      return calChirp
+        '''
+        calChirp = np.zeros(4096, complex)
+        calChirp[:2048] = real + 1j*imag 
+        temp = 2*np.real(np.fft.ifft(calChirp))
+        calChirp = np.fft.fft(temp)
+        return calChirp
     else:
       print('Calibrated chirp file not found...exiting.')
       sys.exit()
@@ -588,7 +626,7 @@ def detChirpFiles(TxTemp, RxTemp, chirp='ref'):
     ideal_chirp = np.zeros(3600, complex)
     ideal_chirp[:int(nsamp)] = np.sin(arg)
     ideal_chirp_FFT = np.fft.fft(ideal_chirp)
-    if chirp == 'UPB':
+    if chirp == 'upb':
       #
       # Load cal_filter.dat
       #
@@ -1088,3 +1126,167 @@ def plotFirstReturn(data, type='Amp', sidelobe=False, title='First Return', fnam
   plt.savefig(pngName, dpi=dpi)
   return
 
+def SHERPA(ObsID, path, runName='SHERPAoutput', EPT='All', chirp='ref', fil_type='matched', beta=0, presum=0, verb=False, diag=False):
+  prog = 'SHERPA'
+  vers = '0.1'
+  SatVal = 0.5 
+  ATx = 8.4
+  Gain = 88
+  #
+  # Need to write code that checks input variables, but it can wait
+  #
+  # Open log file
+  #
+  logFile = '../output/' + str(runName) + '.log'
+  _log = open(logFile, 'w')
+  writeLog(_log, '--- {} {} ---'.format(prog, vers))
+  #
+  # Print summary
+  #
+  writeLog(_log, 'PDS Observation ID:\t{}'.format(ObsID))
+  writeLog(_log, 'Run Name:\t{}'.format(runName))
+  writeLog(_log, 'Type of chirp for range compression:\t{}'.format(chirp))
+  writeLog(_log, 'Type of filtering for range compression:\t{}'.format(fil_type))
+  writeLog(_log, 'Kaiser Window Smoothing Coefficient:\t{}'.format(str(beta)))
+  writeLog(_log, 'Verbose Output:\t{}'.format(verb))
+  writeLog(_log, 'Diagnostic Plots:\t{}'.format(diag))
+  #
+  # Find required data files
+  #
+  lblFile, auxFile, sciFile, logs = getData(path, ObsID)
+  for log in logs:
+    writeLog(_log, log)
+  #
+  # Parse file name for information
+  #
+  ObsID, OSTLine, OperMode, PRF, Version = parseFileName(sciFile)
+  InstrPresum = OperMode['Presum']
+  if presum is None:
+    presum = OperMode['Presum']
+  presum_fac = int(presum / InstrPresum)
+  if presum_fac < 1:
+    presum_fac = 1
+    print('WARNING: Processing presum less than onboard presumming....keeping native presum value')
+  instrMode = OperMode['Mode']
+  BitsPerSample = OperMode['BitsPerSample']
+  #
+  # Determine to Bits per Sample
+  #
+  if BitsPerSample == 4:
+    recLen = 1986
+  elif BitsPerSample == 6:
+    recLen = 2886
+  elif BitsPerSample == 8:
+    recLen = 3786
+  #
+  # Get the number of records from the file size of the science data
+  # divided by the record length
+  #
+  if EPT != 'All':
+    nrec = int(EPT)
+  else:
+    nrec = int(os.path.getsize(sciFile) / recLen)
+  writeLog(_log, 'Reading Auxilliary file...')
+  AuxDF = parseAuxFile(auxFile, df=True)
+  writeLog(_log, 'Finished reading Auxilliary file...')
+  if verb:
+    writeLog(_log, 'Number of Records:\t{}'.format(nrec))
+    writeLog(_log, '----- Presum Information -----')
+    writeLog(_log, 'InstrPresum:\t{}'.format(InstrPresum))
+    writeLog(_log, 'Processing Presum:\t{}'.format(presum))
+    if presum_fac == 1:
+      writeLog(_log, 'No additional presumming performed')
+    else:
+      writeLog(_log, 'Presum Factor:\t{}'.format(presum_fac))
+      writeLog(_log, '----- End Presum Information -----')
+    writeLog(_log, 'Instrument Mode:\t{}'.format(instrMode))
+    writeLog(_log, 'Bits Per Sample:\t{}'.format(BitsPerSample))
+    writeLog(_log, 'Record Length:\t{}'.format(recLen))
+    writeLog(_log, 'Longitude Range of Observation:\t{}, {}'.format(np.amin(AuxDF['SUB_SC_EAST_LONGITUDE']), np.amax(AuxDF['SUB_SC_EAST_LONGITUDE'])))
+    writeLog(_log, 'Planetocentric Latitude Range of Observation:\t{}, {}'.format(np.amin(AuxDF['SUB_SC_PLANETOCENTRIC_LATITUDE']), np.amax(AuxDF['SUB_SC_PLANETOCENTRIC_LATITUDE'])))
+    writeLog(_log, 'Planetographic Latitude Range of Observation:\t{}, {}'.format(np.amin(AuxDF['SUB_SC_PLANETOGRAPHIC_LATITUDE']), np.amax(AuxDF['SUB_SC_PLANETOGRAPHIC_LATITUDE'])))
+    writeLog(_log, 'Solar Longitude Range of Observation:\t{}, {}'.format(np.amin(AuxDF['SOLAR_LONGITUDE']), np.amax(AuxDF['SOLAR_LONGITUDE'])))
+  ######################################################################
+  #
+  # Begin Processing
+  #
+  ######################################################################
+  if chirp == 'ideal' or chirp == 'upb':
+    if chirp == 'ideal':
+      print('Using ideal chirp')
+    else:
+      print('Using cal_filter chirp from UPB')
+    EDRData = np.zeros([3600, int(np.ceil(nrec/presum_fac))], complex)
+    presum_rec = np.zeros([3600, presum_fac], complex)
+  else:
+    EDRData = np.zeros([4096, int(np.ceil(nrec/presum_fac))], complex)
+    presum_rec = np.zeros([4096, presum_fac], complex)
+  writeLog(_log, 'Opening EDR File:\t{}'.format(sciFile))
+  _file1 = open(sciFile, 'rb')
+  if verb:
+    writeLog(_log, 'Begin decompression at:\t{}'.format(datetime.now()))
+  pl = -1
+  plot_data = []
+  for _i in range(0, nrec, presum_fac):
+    #
+    # Get the time since the start of the run for this pulse group
+    #
+    tcen = AuxDF['ELAPSED_TIME'][_i]
+    for _k in range(0, presum_fac):
+      #
+      # Read in single record
+      #
+      _frame = _i + _k
+      sci, ancil = readEDRrecord(_file1, _frame, recLen, BitsPerSample)
+      #
+      # Parse Ancilliary Datq
+      #
+      ancil = parseAncilliary(ancil)
+      #
+      # Decompress science data
+      #
+      sci = decompressSciData(sci,
+              ancil['OST_LINE']['COMPRESSION_SELECTION'],
+              InstrPresum,
+              BitsPerSample,
+              ancil['SDI_BIT_FIELD'])
+      #
+      # Scale value to go from counts@ADC to mVolt@Antenna 
+      #
+      tf = (SatVal*2 / (2**8 - 1))*10**((ancil['OST_LINE']['MANUAL_GAIN_CONTROL'] - (Gain - ATx)) /20) * 10**3
+      sci = sci * tf
+      # Determine calibrated chirp
+      #
+      calChirp = detChirpFiles(AuxDF['TX_TEMP'][_frame], AuxDF['RX_TEMP'][_frame], chirp=chirp)
+      #
+      # Perform chirp compression
+      #
+      presum_rec[:,_k] = rangeCompression(sci, calChirp, chirp=chirp, fil_type="Match", diag=diag)
+      ind = np.where(abs(presum_rec[:,_k]) == np.amax(abs(presum_rec[:,_k])))[0][0]
+      '''
+      plt.subplot(4,1,1)
+      plt.plot(np.real(presum_rec[:,_k]))
+      plt.xlim([ind-40, ind+40])
+      plt.subplot(4,1,2)
+      plt.plot(np.imag(presum_rec[:,_k]))
+      plt.xlim([ind-40, ind+40])
+      pwr = np.abs(presum_rec[:,_k])
+      plt.subplot(4,1,3)
+      plt.plot(pwr)
+      plt.xlim([ind-40, ind+40])
+      dB = 10 * np.log10(pwr / np.max(np.abs(pwr)))
+      plt.subplot(4,1,4)
+      plt.plot(dB)
+      plt.xlim([ind-40, ind+40])
+      plt.show()
+      exit()
+      '''
+    #
+    # Group presum data
+    #
+    EDRData[:,int(_i/presum_fac)] = np.sum(presum_rec, axis=1)
+  if verb:
+    writeLog(_log, 'Decompression finished at:\t{}'.format(datetime.now()))
+  fname = '../output/' + str(runName) + '.npy'
+  np.save(fname, EDRData)
+  return EDRData, calChirp
