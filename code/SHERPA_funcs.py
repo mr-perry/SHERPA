@@ -23,6 +23,7 @@ def parseargs(prog, vers):
   #
   outDir = ['../out/']
   verb = False
+  roi = [None,None,None,None]
   #
   # Initiate the parser
   #
@@ -37,6 +38,8 @@ def parseargs(prog, vers):
   #
   parser.add_argument('-o', '--outDir', nargs=1, default=outDir, type=str,
                      help=str('Desired output directory'))
+  parser.add_argument('-r', '--roi', nargs=4, default=roi, type=float,
+                     help=str('minLat minLon maxLat maxLon'))
   #
   # Obligatory verbosity level and diagnostic options
   #
@@ -55,6 +58,7 @@ def parseargs(prog, vers):
   lblFile = args.lblFile[0]
   outDir = args.outDir[0]
   verb = args.verbose
+  roi = args.roi
   #
   # CHECK LBL FILE
   # 
@@ -98,9 +102,12 @@ def parseargs(prog, vers):
   writeLog(oFiles['_log'], '\tBits per Sample:\t{}'.format(OperMode['BitsPerSample']), verb=verb)
   writeLog(oFiles['_log'], 'PRF:\t{}'.format(OperMode['PRF']), verb=verb)
   writeLog(oFiles['_log'], 'Record Length:\t{}'.format(OperMode['recLen']), verb=verb)
-  writeLog(oFiles['_log'], 'Number of Records:\t{}'.format(OperMode['nrec']), verb=verb)
+  if roi == [None,None,None,None]:
+    writeLog(oFiles['_log'], 'Number of Records:\t{}'.format(OperMode['nrec']), verb=verb)
+  else:
+    writeLog(oFiles['_log'], 'Region of Interest:\t{}'.format(roi), verb=verb)
   writeLog(oFiles['_log'], '', verb=verb)
-  return iFiles, oFiles, TransID, OSTLine, OperMode, verb
+  return iFiles, oFiles, TransID, OSTLine, OperMode, roi, verb
 
 
 def findFiles(lblFile):
@@ -214,7 +221,7 @@ def parseFileName(_file):
   return TransID, OSTLine, OperMode
 
 
-def parseAuxFile(fname, oFile, dic=True, df=False, csv=False, binary=False, saveNP=False):
+def parseAuxFile(fname, oFile, roi=[None,None,None,None], dic=True, df=False, csv=False, binary=False, saveNP=False):
   #
   # Set up dictionary
   #
@@ -310,14 +317,20 @@ def parseAuxFile(fname, oFile, dic=True, df=False, csv=False, binary=False, save
     #
     # Check output
     #
+    iMin = None
+    iMax = None
+    if roi != [None,None,None,None]:
+      iMin, iMax = detIDX(a['SUB_SC_EAST_LONGITUDE'], a['SUB_SC_PLANETOCENTRIC_LATITUDE'], roi) 
+      for key in a:
+        a[key] = a[key][iMin:iMax+1]
     if csv == True:
       aux = pd.DataFrame.from_dict(a)
       aux.to_csv(oFile)
-      return
+      return a, [iMin, iMax]
     if dic == True:
-      return a
+      return a, [iMin, iMax]
     elif df == True:
-      return pd.DataFrame.from_dict(a)
+      return pd.DataFrame.from_dict(a), [iMin, iMax]
 
 def parseAncillary(fname):
   """
@@ -537,22 +550,29 @@ def parseAncillary(fname):
     return a
 
 
-def sepSAdata(iS, oS, oA, n, b, p):
+def sepSAdata(iS, oS, oA, n, b, p, idx=[None,None]):
+  fsize = os.path.getsize(iS)
   _a = open("tmp.anc", 'wb')
   _s = open("tmp.sci", 'wb')
   #
   # Now split the SCIENCE and ANCILIARY DATA
   #
+  idx = idx if idx != [None,None] else [0,int(fsize/n)]
+  _i = idx[0]
   cnt = -1
+  #
+  # Read and process only a select number of echoes
+  #
   with open(iS, 'rb') as f:
-    while True:
-      s = f.read(n)
+    #
+    # 
+    f.seek(_i*n)
+    while _i <= idx[1]:
       cnt += 1
-      if not s:
-        # EOF
-        break
+      s = f.read(n)
       _a.write(s[:186])
       _s.write(s[186:])
+      _i += 1
   _a.close()
   _s.close()
   #
@@ -686,3 +706,18 @@ def makeOut(outDir, oDirs):
   if not os.path.isdir(oDirs['LOGS']):
     os.mkdir(oDirs['LOGS'])
   return
+
+def detIDX(lons, lats, roi):
+  #
+  # Convert lists to NP arrays
+  #
+  if type(lons) is list:
+    lons = np.array(lons)
+  if type(lats) is list:
+    lats = np.array(lats)
+  idx = np.where( np.logical_and( 
+          np.logical_and(lats >= roi[0], lats <= roi[2]),
+          np.logical_and(lons >= roi[1], lons <= roi[3])
+                ))
+  return idx[0].min(), idx[0].max()
+
