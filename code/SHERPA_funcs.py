@@ -23,6 +23,7 @@ def parseargs(prog, vers):
   #
   outDir = ['../out/']
   verb = False
+  ROI = [None]
   #
   # Initiate the parser
   #
@@ -37,6 +38,8 @@ def parseargs(prog, vers):
   #
   parser.add_argument('-o', '--outDir', nargs=1, default=outDir, type=str,
                      help=str('Desired output directory'))
+  parser.add_argument('-r', '--ROI', nargs=+, default=ROI,
+                     help=str('minLat minLon maxLat maxLon'))
   #
   # Obligatory verbosity level and diagnostic options
   #
@@ -71,7 +74,7 @@ def parseargs(prog, vers):
   #
   iFiles = findFiles(lblFile)
   #
-  # form outDir
+  #form outDir
   #
   oDirs, oFiles = formOut(lblFile, outDir)
   #
@@ -568,8 +571,11 @@ def sepSAdata(iS, oS, oA, n, b, p):
   if b == 8:
     tmp = np.fromfile('tmp.sci', dtype='int8') 
   elif b == 6:
-    print('Not available yet')
-    exit()
+    _f = open('tmp.sci', 'rb')
+    bs = bitstring.BitArray(_f)
+    tmp = np.zeros(int(len(bs)/b), int)
+    for _j in range(0, len(bs), b):
+      tmp[int(_j/b)] = bs[_j:_j+b].int
   elif b == 4:
     tmp = np.fromfile('tmp.sci', dtype='int4')
   #
