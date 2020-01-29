@@ -23,7 +23,6 @@ def parseargs(prog, vers):
   #
   outDir = ['../out/']
   verb = False
-  ROI = [None]
   #
   # Initiate the parser
   #
@@ -38,8 +37,6 @@ def parseargs(prog, vers):
   #
   parser.add_argument('-o', '--outDir', nargs=1, default=outDir, type=str,
                      help=str('Desired output directory'))
-  parser.add_argument('-r', '--ROI', nargs=+, default=ROI,
-                     help=str('minLat minLon maxLat maxLon'))
   #
   # Obligatory verbosity level and diagnostic options
   #
