@@ -45,12 +45,6 @@ def sherpa(lblFile, outDir, verb=False):
   writeLog(oFiles['_log'], 'Record Length:\t{}'.format(OperMode['recLen']), verb=verb)
   writeLog(oFiles['_log'], 'Number of Records:\t{}'.format(OperMode['nrec']), verb=verb)
   writeLog(oFiles['_log'], '', verb=verb)
-  #
-  # Catch for things I haven't tested yet...
-  #
-  if OperMode['BitsPerSample'] == 6 or OperMode['BitsPerSample'] == 4:
-    print('[ERROR] Decoding and decompressing of 6 and 4 bit resolution data is not currently supported...')
-    sys.exit()
   ##########################################################
   #
   # Start of actual processing...
@@ -100,9 +94,6 @@ def main():
   # Parse the arguments
   #
   iFiles, oFiles, TransID, OSTLine, OperMode, verb = parseargs(prog, vers)
-  if OperMode['BitsPerSample'] == 6 or OperMode['BitsPerSample'] == 4:
-    print('[ERROR] Decoding and decompressing of 6 and 4 bit resolution data is not currently supported...')
-    sys.exit()
   #
   # Parse Auxiliary File
   # 
