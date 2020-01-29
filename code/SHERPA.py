@@ -93,15 +93,15 @@ def main():
   #
   # Parse the arguments
   #
-  iFiles, oFiles, TransID, OSTLine, OperMode, verb = parseargs(prog, vers)
+  iFiles, oFiles, TransID, OSTLine, OperMode, roi, verb = parseargs(prog, vers)
   #
   # Parse Auxiliary File
   # 
-  parseAuxFile(iFiles['AUX'], oFiles['AUX'], dic=False, csv=True)
+  _, idx = parseAuxFile(iFiles['AUX'], oFiles['AUX'], dic=False, csv=True, roi=roi)
   #
   # Separate the SCIENCE and ANCILLARY data
   #
-  cnt = sepSAdata(iFiles['SCIENCE'], oFiles['SCIENCE'], oFiles['ANCILLARY'], OperMode['recLen'], OperMode['BitsPerSample'], OperMode['Presum'])
+  cnt = sepSAdata(iFiles['SCIENCE'], oFiles['SCIENCE'], oFiles['ANCILLARY'], OperMode['recLen'], OperMode['BitsPerSample'], OperMode['Presum'], idx=idx)
   #
   # Get the total time (tt)
   #
