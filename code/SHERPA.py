@@ -55,6 +55,13 @@ def sherpa(lblFile, outDir, roi):
   # Parse Auxiliary File
   #
   _, idx = parseAuxFile(iFiles['AUX'], oFiles['AUX'], dic=False, csv=True, roi=roi) 
+  if idx[0] == -1:
+    #
+    # There is not data from this trace in the ROI
+    #
+    writeLog(oFiles['_log'], '[WARNING]: No data for this observation exists within the ROI...', verb=verb)
+    oFiles['_log'].close()
+    return
   #
   # Separate the SCIENCE and ANCILLARY data
   #
@@ -99,6 +106,14 @@ def main():
   # Parse Auxiliary File
   # 
   _, idx = parseAuxFile(iFiles['AUX'], oFiles['AUX'], dic=False, csv=True, roi=roi)
+  if idx[0] == -1:
+    #
+    # There is not data from this trace in the ROI
+    #
+    writeLog(oFiles['_log'], '[WARNING]: No data for this observation exists within the ROI...', verb=verb)
+    oFiles['_log'].close()
+    return
+    
   #
   # Separate the SCIENCE and ANCILLARY data
   #
