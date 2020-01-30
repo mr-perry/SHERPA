@@ -588,11 +588,7 @@ def sepSAdata(iS, oS, oA, n, b, p, idx=[None,None]):
   if b == 8:
     tmp = np.fromfile('tmp.sci', dtype='int8') 
   elif b == 6:
-    _f = open('tmp.sci', 'rb')
-    bs = bitstring.BitArray(_f)
-    tmp = np.zeros(int(len(bs)/b), int)
-    for _j in range(0, len(bs), b):
-      tmp[int(_j/b)] = bs[_j:_j+b].int
+    tmp = load6bit('tmp.sci', 3600)
   elif b == 4:
     tmp = np.fromfile('tmp.sci', dtype='int4')
   #
@@ -721,3 +717,16 @@ def detIDX(lons, lats, roi):
                 ))
   return idx[0].min(), idx[0].max()
 
+
+def load6bit(f, n):
+  nrec = int(os.path.getsize(f)/2700)
+  fmt = ['int:6']*n
+  a = np.zeros(int(n*nrec), int)
+  with open(f, 'rb') as _f:
+    for _i in range(nrec):
+      s = bitstring.BitStream(_f.read(2700))
+      a[_i*n:(_i*n)+n] = s.unpack(fmt)
+  return a
+  
+  
+  return

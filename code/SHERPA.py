@@ -1,7 +1,7 @@
 from SHERPA_funcs import *
 from datetime import datetime
 
-def sherpa(lblFile, outDir, verb=False):
+def sherpa(lblFile, outDir,roi=[None,None,None,None], verb=False):
   #
   # Get start time
   #
@@ -53,7 +53,7 @@ def sherpa(lblFile, outDir, verb=False):
   #
   # Parse Auxiliary File
   #
-  parseAuxFile(iFiles['AUX'], oFiles['AUX'], dic=False, csv=True) 
+  _, idx = parseAuxFile(iFiles['AUX'], oFiles['AUX'], dic=False, csv=True, roi=roi) 
   #
   # Separate the SCIENCE and ANCILLARY data
   #
