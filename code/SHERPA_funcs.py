@@ -321,6 +321,8 @@ def parseAuxFile(fname, oFile, roi=[None,None,None,None], dic=True, df=False, cs
     iMax = None
     if roi != [None,None,None,None]:
       iMin, iMax = detIDX(a['SUB_SC_EAST_LONGITUDE'], a['SUB_SC_PLANETOCENTRIC_LATITUDE'], roi) 
+      if iMin == -1:
+        return -1, [iMin, iMax]
       for key in a:
         a[key] = a[key][iMin:iMax+1]
     if csv == True:
@@ -715,6 +717,8 @@ def detIDX(lons, lats, roi):
           np.logical_and(lats >= roi[0], lats <= roi[2]),
           np.logical_and(lons >= roi[1], lons <= roi[3])
                 ))
+  if len(idx) == 0:
+    return -1, -1
   return idx[0].min(), idx[0].max()
 
 
