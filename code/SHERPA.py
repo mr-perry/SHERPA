@@ -1,7 +1,7 @@
 from SHERPA_funcs import *
 from datetime import datetime
 
-def sherpa(lblFile, outDir, roi=[None,None,None,None]):
+def sherpa(lblFile, outDir, roi):
   verb=False
   #
   # Get start time
