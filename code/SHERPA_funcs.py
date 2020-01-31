@@ -717,7 +717,7 @@ def detIDX(lons, lats, roi):
           np.logical_and(lats >= roi[0], lats <= roi[2]),
           np.logical_and(lons >= roi[1], lons <= roi[3])
                 ))
-  if len(idx) == 0:
+  if len(idx[0]) == 0:
     return -1, -1
   return idx[0].min(), idx[0].max()
 
