@@ -732,5 +732,5 @@ def load6bit(f, n):
       a[_i*n:(_i*n)+n] = s.unpack(fmt)
   return a
   
-  
-  return
+def rangeCompression():
+  return 
